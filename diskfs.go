@@ -106,21 +106,16 @@ package diskfs
 import (
 	"errors"
 	"fmt"
-	"io"
 	"os"
 
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/sys/unix"
-
 	"github.com/diskfs/go-diskfs/disk"
+	log "github.com/sirupsen/logrus"
 )
 
 // when we use a disk image with a GPT, we cannot get the logical sector size from the disk via the kernel
 //    so we use the default sector size of 512, per Rod Smith
 const (
 	defaultBlocksize, firstblock int = 512, 2048
-	blksszGet                        = 0x1268
-	blkbszGet                        = 0x80081270
 )
 
 // Format represents the format of the disk
@@ -196,16 +191,8 @@ func initDisk(f *os.File, openMode OpenModeOption) (*disk.Disk, error) {
 	case mode&os.ModeDevice != 0:
 		log.Debug("initDisk(): block device")
 		diskType = disk.Device
-		file, err := os.Open(f.Name())
-		if err != nil {
-			return nil, fmt.Errorf("error opening block device %s: %s\n", f.Name(), err)
-		}
-		size, err = file.Seek(0, io.SeekEnd)
-		if err != nil {
-			return nil, fmt.Errorf("error seeking to end of block device %s: %s\n", f.Name(), err)
-		}
-		lblksize, pblksize, err = getSectorSizes(f)
-		log.Debugf("initDisk(): logical block size %d, physical block size %d", lblksize, pblksize)
+		size, lblksize, pblksize, err = getBlockSizes(f)
+		log.Debugf("initDisk(): total size bytes %d, logical block size %d, physical block size %d", size, lblksize, pblksize)
 		defaultBlocks = false
 		if err != nil {
 			return nil, fmt.Errorf("Unable to get block sizes for device %s: %v", f.Name(), err)
@@ -301,22 +288,4 @@ func Create(device string, size int64, format Format) (*disk.Disk, error) {
 	}
 	// return our disk
 	return initDisk(f, ReadWriteExclusive)
-}
-
-// to get the logical and physical sector sizes
-func getSectorSizes(f *os.File) (int64, int64, error) {
-	/*
-		ioctl(fd, BLKBSZGET, &physicalsectsize);
-
-	*/
-	fd := f.Fd()
-	logicalSectorSize, err := unix.IoctlGetInt(int(fd), blksszGet)
-	if err != nil {
-		return 0, 0, fmt.Errorf("Unable to get device logical sector size: %v", err)
-	}
-	physicalSectorSize, err := unix.IoctlGetInt(int(fd), blkbszGet)
-	if err != nil {
-		return 0, 0, fmt.Errorf("Unable to get device physical sector size: %v", err)
-	}
-	return int64(logicalSectorSize), int64(physicalSectorSize), nil
 }
