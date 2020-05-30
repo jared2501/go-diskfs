@@ -119,8 +119,6 @@ import (
 //    so we use the default sector size of 512, per Rod Smith
 const (
 	defaultBlocksize, firstblock int = 512, 2048
-	blksszGet                        = 0x1268
-	blkbszGet                        = 0x80081270
 )
 
 // Format represents the format of the disk
@@ -310,11 +308,11 @@ func getSectorSizes(f *os.File) (int64, int64, error) {
 
 	*/
 	fd := f.Fd()
-	logicalSectorSize, err := unix.IoctlGetInt(int(fd), blksszGet)
+	logicalSectorSize, err := unix.IoctlGetInt(int(fd), logicalSectorSizeSyscall)
 	if err != nil {
 		return 0, 0, fmt.Errorf("Unable to get device logical sector size: %v", err)
 	}
-	physicalSectorSize, err := unix.IoctlGetInt(int(fd), blkbszGet)
+	physicalSectorSize, err := unix.IoctlGetInt(int(fd), physicalSectorSizeSyscall)
 	if err != nil {
 		return 0, 0, fmt.Errorf("Unable to get device physical sector size: %v", err)
 	}
